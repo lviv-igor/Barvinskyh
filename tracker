@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Багатоперіодний сімейний трекер витрат на ремонт</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+    input[type="date"], input[type="number"], input[type="text"], select {
+      width: 100%;
+      padding: 5px;
+      box-sizing: border-box;
+    }
+    button {
+      padding: 10px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+      margin-right: 10px;
+      margin-bottom: 10px;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    .family-section {
+      margin-bottom: 20px;
+      border: 1px solid #ddd;
+      padding: 10px;
+    }
+    .family-total {
+      font-weight: bold;
+      margin-top: 10px;
+    }
+    #contributionSection {
+      margin-top: 20px;
+      border: 1px solid #ddd;
+      padding: 10px;
+    }
+    #periodSelector {
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Багатоперіодний сімейний трекер витрат на ремонт</h1>
+  
+  <div id="periodSelector">
+    <label for="periodSelect">Виберіть період: </label>
+    <select id="periodSelect" onchange="loadPeriodData()">
+      <option value="1">Період 1</option>
+    </select>
+    <button onclick="addNewPeriod()">Додати новий період</button>
+  </div>
+  
+  <div id="expenseSections"></div>
+  
+  <button onclick="calculateContributions()">Розрахувати внески</button>
+  
+  <div id="contributionSection">
+    <h2>Внески за період</h2>
+    <table id="contributionTable">
+      <tr>
+        <th>Сім'я</th>
+        <th>Необхідний внесок (₴)</th>
+        <th>Фактичний внесок (₴)</th>
+        <th>Баланс за період (₴)</th>
+        <th>Загальний баланс (₴)</th>
+      </tr>
+      <tr>
+        <td>Геричі</td>
+        <td id="requiredContribution1">0.00</td>
+        <td><input type="number" id="actualContribution1" step="0.01" onchange="updateBalance(1)"></td>
+        <td id="periodBalance1">0.00</td>
+        <td id="runningBalance1">0.00</td>
+      </tr>
+      <tr>
+        <td>Мамонові</td>
+        <td id="requiredContribution2">0.00</td>
+        <td><input type="number" id="actualContribution2" step="0.01" onchange="updateBalance(2)"></td>
+        <td id="periodBalance2">0.00</td>
+        <td id="runningBalance2">0.00</td>
+      </tr>
+      <tr>
+        <td>Іванишини</td>
+        <td id="requiredContribution3">0.00</td>
+        <td><input type="number" id="actualContribution3" step="0.01" onchange="updateBalance(3)"></td>
+        <td id="periodBalance3">0.00</td>
+        <td id="runningBalance3">0.00</td>
+      </tr>
+      <tr>
+        <td>Ремізові</td>
+        <td id="requiredContribution4">0.00</td>
+        <td><input type="number" id="actualContribution4" step="0.01" onchange="updateBalance(4)"></td>
+        <td id="periodBalance4">0.00</td>
+        <td id="runningBalance4">0.00</td>
+      </tr>
+    </table>
+  </div>
+  
+  <h2>Загальний баланс за період: ₴<span id="totalPeriodBalance">0.00</span></h2>
+  
+  <script>
+    let periodData = {
+      1: {
+        expenses: [{}, {}, {}, {}],
+        contributions: [0, 0, 0, 0],
+        periodBalances: [0, 0, 0, 0]
+      }
+    };
+    let currentPeriod = 1;
+    const familyNames = ['Геричі', 'Мамонові', 'Іванишини', 'Ремізові'];
+
+    function createExpenseRow(familyIndex) {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td><input type="date" class="date"></td>
+        <td><input type="number" class="amount" min="0" step="0.01" onchange="updateFamilyTotal(${familyIndex})"></td>
+        <td><input type="text" class="description"></td>
+        <td><button onclick="removeExpenseRow(this, ${familyIndex})">Видалити</button></td>
+      `;
+      return row;
+    }
+
+    function addExpenseRow(familyIndex) {
+      const table = document.getElementById(`expenseTable${familyIndex}`);
+      table.appendChild(createExpenseRow(familyIndex));
+      updateFamilyTotal(familyIndex);
+    }
+
+    function removeExpenseRow(button, familyIndex) {
+      const row = button.parentNode.parentNode;
+      const table = row.parentNode;
+      table.removeChild(row);
+      updateFamilyTotal(familyIndex);
+    }
+
+    function updateFamilyTotal(familyIndex) {
+      const amounts = document.querySelectorAll(`#expenseTable${familyIndex} .amount`);
+      let total = 0;
+      amounts.forEach(amount => {
+        total += parseFloat(amount.value) || 0;
+      });
+      document.getElementById(`familyTotal${familyIndex}`).textContent = total.toFixed(2);
+      calculateContributions();
+    }
+
+    function createFamilySection(familyIndex) {
+      const section = document.createElement('div');
+      section.className = 'family-section';
+      section.innerHTML = `
+        <h3>${familyNames[familyIndex - 1]}</h3>
+        <table id="expenseTable${familyIndex}">
+          <tr>
+            <th>Дата</th>
+            <th>Сума (₴)</th>
+            <th>Опис</th>
+            <th>Дія</th>
+          </tr>
+        </table>
+        <button onclick="addExpenseRow(${familyIndex})">Додати витрату</button>
+        <div class="family-total">Всього: ₴<span id="familyTotal${familyIndex}">0.00</span></div>
+      `;
+      return section;
+    }
+
+    function initializeExpenseSections() {
+      const container = document.getElementById('expenseSections');
+      container.innerHTML = '';
+      for (let i = 1; i <= 4; i++) {
+        container.appendChild(createFamilySection(i));
+        addExpenseRow(i);
+      }
+    }
+
+    function calculateContributions() {
+      let totalExpense = 0;
+      const familyExpenses = [0, 0, 0, 0];
+      
+      for (let i = 1; i <= 4; i++) {
+        const amounts = document.querySelectorAll(`#expenseTable${i} .amount`);
+        let familyTotal = 0;
+        amounts.forEach(amount => {
+          const expense = parseFloat(amount.value) || 0;
+          familyTotal += expense;
+        });
+        totalExpense += familyTotal;
+        familyExpenses[i-1] = familyTotal;
+      }
+      
+      const equalShare = totalExpense / 4;
+      const contributions = familyExpenses.map(expense => equalShare - expense);
+      
+      for (let i = 0; i < 4; i++) {
+        document.getElementById(`requiredContribution${i+1}`).textContent = contributions[i].toFixed(2);
+        updateBalance(i+1);
+      }
+
+      savePeriodData();
+    }
+
+    function updateBalance(familyIndex) {
+      const requiredContribution = parseFloat(document.getElementById(`requiredContribution${familyIndex}`).textContent);
+      const actualContribution = parseFloat(document.getElementById(`actualContribution${familyIndex}`).value) || 0;
+      const periodBalance = actualContribution - requiredContribution;
+      document.getElementById(`periodBalance${familyIndex}`).textContent = periodBalance.toFixed(2);
+      
+      updateRunningBalances();
+      updateTotalPeriodBalance();
+      savePeriodData();
+    }
+
+    function updateRunningBalances() {
+      for (let i = 1; i <= 4; i++) {
+        let runningBalance = 0;
+        for (let period = 1; period <= Object.keys(periodData).length; period++) {
+          if (periodData[period] && periodData[period].periodBalances) {
+            runningBalance += periodData[period].periodBalances[i-1];
+          }
+        }
+        document.getElementById(`runningBalance${i}`).textContent = runningBalance.toFixed(2);
+      }
+    }
+
+    function updateTotalPeriodBalance() {
+      let totalPeriodBalance = 0;
+      for (let i = 1; i <= 4; i++) {
+        totalPeriodBalance += parseFloat(document.getElementById(`periodBalance${i}`).textContent) || 0;
+      }
+      document.getElementById('totalPeriodBalance').textContent = totalPeriodBalance.toFixed(2);
+    }
+
+    function savePeriodData() {
+      periodData[currentPeriod] = {
+        expenses: [],
+        contributions: [],
+        periodBalances: []
+      };
+
+      for (let i = 1; i <= 4; i++) {
+        const familyExpenses = [];
+        const expenseRows = document.querySelectorAll(`#expenseTable${i} tr:not(:first-child)`);
+        expenseRows.forEach(row => {
+          familyExpenses.push({
+            date: row.querySelector('.date').value,
+            amount: parseFloat(row.querySelector('.amount').value) || 0,
+            description: row.querySelector('.description').value
+          });
+        });
+        periodData[currentPeriod].expenses.push(familyExpenses);
+        periodData[currentPeriod].contributions.push(parseFloat(document.getElementById(`actualContribution${i}`).value) || 0);
+        periodData[currentPeriod].periodBalances.push(parseFloat(document.getElementById(`periodBalance${i}`).textContent) || 0);
+      }
+      
+      updateRunningBalances();
+    }
+
+    function loadPeriodData() {
+      currentPeriod = parseInt(document.getElementById('periodSelect').value);
+      const data = periodData[currentPeriod];
+
+      if (data) {
+        for (let i = 1; i <= 4; i++) {
+          const table = document.getElementById(`expenseTable${i}`);
+          while (table.rows.length > 1) {
+            table.deleteRow(1);
+          }
+          data.expenses[i-1].forEach(expense => {
+            const row = createExpenseRow(i);
+            row.querySelector('.date').value = expense.date;
+            row.querySelector('.amount').value = expense.amount;
+            row.querySelector('.description').value = expense.description;
+            table.appendChild(row);
+          });
+          updateFamilyTotal(i);
+          document.getElementById(`actualContribution${i}`).value = data.contributions[i-1];
+          document.getElementById(`periodBalance${i}`).textContent = data.periodBalances[i-1].toFixed(2);
+        }
+        calculateContributions();
+      } else {
+        initializeExpenseSections();
+      }
+      updateRunningBalances();
+    }
+
+    function resetPeriodData() {
+      for (let i = 1; i <= 4; i++) {
+        document.getElementById(`actualContribution${i}`).value = '';
+        document.getElementById(`periodBalance${i}`).textContent = '0.00';
+      }
+      updateTotalPeriodBalance();
+    }
+
+    function addNewPeriod() {
+      const periodSelect = document.getElementById('periodSelect');
+      const newPeriodNumber = periodSelect.options.length + 1;
+      periodSelect.innerHTML += `<option value="${newPeriodNumber}">Період ${newPeriodNumber}</option>`;
+      periodSelect.value = newPeriodNumber;
+      currentPeriod = newPeriodNumber;
+      periodData[newPeriodNumber] = {
+        expenses: [{}, {}, {}, {}],
+        contributions: [0, 0, 0, 0],
+        periodBalances: [0, 0, 0, 0]
+      };
+      initializeExpenseSections();
+      resetPeriodData();
+    }
+
+    initializeExpenseSections();
+  </script>
+</body>
+</html>
